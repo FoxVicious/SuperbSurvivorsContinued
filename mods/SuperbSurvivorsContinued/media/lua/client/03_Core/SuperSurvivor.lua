@@ -75,7 +75,7 @@ end
 ---comment
 ---@param square any
 ---@param isFemale any
----@return unknown
+---@return IsoPlayer|table
 function SuperSurvivor:spawnPlayer(square, isFemale)
 	local isLocalFunctionLoggingEnabled = false;
 	CreateLogLine("SuperSurvivor", isLocalFunctionLoggingEnabled, "SuperSurvivor:spawnPlayer() called");
@@ -3718,6 +3718,10 @@ function SuperSurvivor:DrinkFromObject(waterObject)
 	ISTimedActionQueue.add(ISTakeWaterAction:new(playerObj, nil, waterConsumed, waterObject, (waterConsumed * 10) + 15));
 end
 
+function SuperSurvivor:HasWaterContainer()
+	return self.player:getInventory():containsEvalRecurse(SuperSurvivorPredicate.waterContainer)
+end
+
 -- WIP - Cows: NEED TO REWORK THE NESTED LOOP CALLS
 function SuperSurvivor:findNearestSheetRopeSquare(down)
 	CreateLogLine("SuperSurvivor", isLocalLoggingEnabled, "SuperSurvivor:findNearestSheetRopeSquare() called");
@@ -3884,6 +3888,96 @@ function SuperSurvivor:FindThisNearBy(itemType, TypeOrCategory)
 	end
 	CreateLogLine("SuperSurvivor", isLocalLoggingEnabled, "--- SuperSurvivor:FindThisNearBy() end ---");
 	return itemtoReturn
+end
+
+function SuperSurvivor:FindThisNearByPredicate(predicate)
+
+	if (self.GoFindThisCounter > 0) then
+		return nil
+	end
+
+	self.GoFindThisCounter = 10;
+	local sq, itemToReturn;
+	local range = 30
+	local closestSoFar = 999;
+	if (self.player:getZ() > 0) or (getCell():getGridSquare(self.player:getX(), self.player:getY(), self.player:getZ() + 1) ~= nil) then
+		zhigh = self.player:getZ() + 1
+	else
+		zhigh = 0
+	end
+
+	for z = 0, zhigh do
+		local spiral = SpiralSearch:new(self.player:getX(), self.player:getY(), range)
+		local x, y
+
+		for i = spiral:forMax(), 0, -1 do
+
+			x = spiral:getX()
+			y = spiral:getY()
+
+			sq = getCell():getGridSquare(x, y, z);
+			if (sq ~= nil) then
+				local tempDistance = 0
+				if (self.player:getZ() ~= z) then
+					tempDistance = tempDistance + 10
+				end
+				local items = sq:getObjects()
+				for j = 0, items:size() - 1 do
+					if (items:get(j):getContainer() ~= nil) then
+						local container = items:get(j):getContainer()
+
+						if (sq:getZ() ~= self.player:getZ()) then
+							tempDistance = tempDistance + 13
+						end
+
+						if (tempDistance < closestSoFar) then
+							local item = FindByPredicate(container, predicate)
+							if (item ~= nil) then
+								itemToReturn = item
+								closestSoFar = tempDistance
+							end
+						end
+					end
+				end
+
+				-- check floor
+				if itemToReturn ~= nil then
+					self.TargetSquare = sq
+				else
+					items = sq:getWorldObjects()
+					for j = 0, items:size() - 1 do
+						local item = items:get(j):getItem()
+						if (tempDistance < closestSoFar) and
+								(item ~= nil) and predicate(item) then
+							itemToReturn = item
+							closestSoFar = tempDistance
+							self.TargetSquare = sq
+						end
+					end
+				end
+
+
+			end
+
+			if (self.TargetSquare ~= nil and itemToReturn ~= nil) then
+				break
+			end
+
+			spiral:next()
+
+		end
+		--	end
+		--end
+
+		if (self.TargetSquare ~= nil and itemToReturn ~= nil) then
+			break
+		end
+	end
+
+	if (self.TargetSquare ~= nil and itemToReturn ~= nil) and (self.TargetSquare:getRoom()) and (self.TargetSquare:getRoom():getBuilding()) then
+		self.TargetBuilding = self.TargetSquare:getRoom():getBuilding()
+	end
+	return itemToReturn
 end
 
 function SuperSurvivor:ensureInInv(item)

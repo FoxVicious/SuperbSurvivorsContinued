@@ -33,7 +33,6 @@ function ChopWoodTask:isValid()
 	end
 end
 
--- WIP - Cows: NEED TO REWORK THE NESTED LOOP CALLS
 function ChopWoodTask:update()
 	CreateLogLine("ChopWoodTask", isLocalLoggingEnabled, "ChopWoodTask:update() Called");
 	if (not self:isValid()) then return false end
@@ -46,10 +45,11 @@ function ChopWoodTask:update()
 			self.parent:Wait(1)
 		else
 			local player = self.parent:Get()
-			--player:Say(tostring(player:getStats():getEndurance()))
-			-- WIP - Cows: Does this mean current actor has less than 50% endurance?
 			if (player:getStats():getEndurance() < 0.50) then
-				player:getStats():setEndurance(player:getStats():getEndurance() + 0.50)
+				if (self.parent.Reducer % 240 == 0) then
+					self.parent:RoleplaySpeak(getActionText("Resting"))
+				end
+				player:getStats():setEndurance(player:getStats():getEndurance() + 0.01)
 				return
 			end
 
@@ -59,57 +59,13 @@ function ChopWoodTask:update()
 				player:setPrimaryHandItem(nil)
 				player:setSecondaryHandItem(nil)
 			end
-			if (wep == nil) or ((wep ~= nil) and (wep:getType() ~= "Axe") and (wep:getType() ~= "WoodAxe") and (wep:getType() ~= "AxeStone") and (wep:getType() ~= "HandAxe")) then
-				self.Axe = nil
-				local inv = self.parent:Get():getInventory()
-				local bag = self.parent:getBag()
-				if (self.Axe == nil) then self.Axe = inv:getItemFromType("AxeStone") end
-				if (self.Axe == nil) then self.Axe = inv:getItemFromType("WoodAxe") end
-				if (self.Axe == nil) then self.Axe = inv:getItemFromType("Axe") end
-				if (self.Axe == nil) then self.Axe = inv:getItemFromType("HandAxe") end
-				if (self.Axe == nil) then
-					self.Axe = bag:getItemFromType("AxeStone")
-					if self.Axe ~= nil then
-						ISTimedActionQueue.add(ISInventoryTransferAction:new(player, self.Axe, bag,
-							inv, nil))
-					end
-				end
-				if (self.Axe == nil) then
-					self.Axe = bag:getItemFromType("WoodAxe")
-					if self.Axe ~= nil then
-						ISTimedActionQueue.add(ISInventoryTransferAction:new(player, self.Axe, bag,
-							inv, nil))
-					end
-				end
-				if (self.Axe == nil) then
-					self.Axe = bag:getItemFromType("Axe")
-					if self.Axe ~= nil then
-						ISTimedActionQueue.add(ISInventoryTransferAction:new(player, self.Axe, bag,
-							inv, nil))
-					else
-						inv:AddItem("Base.Axe")
-					end
-				end
-				if (self.Axe == nil) then
-					self.Axe = bag:getItemFromType("HandAxe")
-					if self.Axe ~= nil then
-						ISTimedActionQueue.add(ISInventoryTransferAction:new(player, self.Axe, bag,
-							inv, nil))
-					end
-				end
-				if (self.Axe ~= nil and self.Axe:isBroken()) then
-					self.Axe = nil
-					player:setPrimaryHandItem(nil)
-					player:setSecondaryHandItem(nil)
-					-- take broken axes back
-					local dropSquare = self.group:getBaseCenter()
-					local ToolStorageCenter = self.group:getGroupAreaCenterSquare("ToolStorageArea")
-					if (ToolStorageCenter) then dropSquare = ToolStorageCenter end
-					self.parent:getTaskManager():AddToTop(CleanInvTask:new(self.parent, dropSquare, false))
-				end
+			if (wep == nil) or (not SuperSurvivorPredicate.chopTree(wep)) then
+				self.Axe = self.parent:Get():getInventory():getFirstEvalRecurse(SuperSurvivorPredicate.chopTree)
+
 				if (self.Axe ~= nil) and (player:getPrimaryHandItem() ~= self.Axe) then
 					player:setPrimaryHandItem(self.Axe)
 				end
+
 			else
 				self.Axe = wep
 			end
@@ -191,7 +147,7 @@ function ChopWoodTask:update()
 				if (not self.axetoget) then
 					self.axetoget = true
 
-					self.parent:getTaskManager():AddToTop(FindThisTask:new(self.parent, "Axe", "Type"))
+					self.parent:getTaskManager():AddToTop(FindThisTask:new(self.parent, "Axe", "Type", 1, SuperSurvivorPredicate.chopTree))
 				end
 			end
 		end

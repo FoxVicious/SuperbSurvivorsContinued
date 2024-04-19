@@ -349,3 +349,27 @@ function IsItemWater(item)
 end
 
 --- END WATER ---
+
+--- PREDICATE ---
+
+function FindByPredicate(container, predicate)
+	if (not container) then
+		return nil
+	end
+
+	local items = container:getItems()
+
+	if (items ~= nil) and (items:size() > 0) then
+		local count = items:size()
+		for i = 1, count - 1 do
+			local item = items:get(i)
+			if (item ~= nil) and predicate(item) then
+				return item
+			end
+		end
+	end
+
+	return nil
+end
+
+--- EDN PREDICATE ---

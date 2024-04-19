@@ -416,12 +416,12 @@ function SuperSurvivorsAreaSelect(context, area, Display)
 	local selectOption = context:addOption(Display, worldobjects, nil);
 	local submenu = context:getNew(context);
 
-	if (SuperSurvivorSelectArea[area]) then
-		submenu:addOption(Get_SS_ContextMenuText("SetAreaConfirm"), nil, SelectingArea, area, 1)
-		submenu:addOption(Get_SS_ContextMenuText("SetAreaCancel"), nil, SelectingArea, area, 0)
-		submenu:addOption(Get_SS_ContextMenuText("SetAreaClear"), nil, SelectingArea, area, -1)
+	if (SuperSurvivorsBaseSelector.selectingArea) then
+		submenu:addOption(Get_SS_ContextMenuText("SetAreaConfirm"), SuperSurvivorsBaseSelector, SuperSurvivorsBaseSelector.StopSelectingArea, area, 1)
+		submenu:addOption(Get_SS_ContextMenuText("SetAreaCancel"), SuperSurvivorsBaseSelector, SuperSurvivorsBaseSelector.StopSelectingArea,area, 0)
+		submenu:addOption(Get_SS_ContextMenuText("SetAreaClear"), SuperSurvivorsBaseSelector, SuperSurvivorsBaseSelector.StopSelectingArea, area, -1)
 	else
-		MakeToolTip(submenu:addOption(Get_SS_ContextMenuText("SetAreaSelect"), nil, StartSelectingArea, area),
+		MakeToolTip(submenu:addOption(Get_SS_ContextMenuText("SetAreaSelect"), SuperSurvivorsBaseSelector, SuperSurvivorsBaseSelector.StartSelectingArea, area),
 			Get_SS_ContextMenuText("SetAreaSelect"), Get_SS_ContextMenuText("SetAreaSelectDesc"))
 	end
 

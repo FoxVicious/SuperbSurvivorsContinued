@@ -496,16 +496,30 @@ end
 --****************************************************
 -- Utility
 --****************************************************
+
+local function isAllBaseAreaHidden()
+    for key, value in pairs(base_area_visibility) do
+        if type(value) == "table" and value.area_shown == true then
+            return false
+        end
+    end
+    return true
+end
+
 function on_click_base_show(group_id, area_name)
     base_area_visibility[area_name].group_id = group_id
     if base_area_visibility[area_name].area_shown then
         base_area_visibility[area_name].area_shown = false;
         base_area_visibility[area_name].button_title = "show";
-        Events.OnRenderTick.Remove(base_area_visibility.event_update_area_highlight);
+        if(isAllBaseAreaHidden())then
+            Events.OnRenderTick.Remove(base_area_visibility.event_update_area_highlight);
+        end
     else
+        if(isAllBaseAreaHidden())then
+            Events.OnRenderTick.Add(base_area_visibility.event_update_area_highlight);
+        end
         base_area_visibility[area_name].area_shown = true;
         base_area_visibility[area_name].button_title = "hide";
-        Events.OnRenderTick.Add(base_area_visibility.event_update_area_highlight);
     end
     SurvivorPanels[2]:dupdate();
 end
@@ -637,10 +651,10 @@ function base_area_visibility.event_update_area_highlight()
                 local group_id = base_area_visibility[tostring(area_name)].group_id;
                 local group = SSGM:GetGroupById(group_id);
                 local coords = (tostring(area_name) == "Bounds") and group.Bounds or group.GroupAreas[area_name];
-                local x1 = coords[1];
-                local x2 = coords[2];
-                local y1 = coords[3];
-                local y2 = coords[4];
+                local x1 = math.min( coords[1], coords[2]);
+                local x2 = math.max(coords[1], coords[2]);
+                local y1 = math.min( coords[3], coords[4]);
+                local y2 = math.max( coords[3], coords[4]);
                 for i = x1, x2 do
                     for j = y1, y2 do
                         local cell = getCell():getGridSquare(i, j, getSpecificPlayer(0):getZ());

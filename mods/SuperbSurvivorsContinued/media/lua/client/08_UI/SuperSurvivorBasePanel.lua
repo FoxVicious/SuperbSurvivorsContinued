@@ -70,6 +70,8 @@ function PanelBaseInfo:initialise()
     ISPanel.initialise(self)
 end
 
+
+
 function PanelBaseInfo:dupdate()
     self.group = SSGM:GetGroupById(SSM:Get(0):getGroupID())
     self.set_state = is_area_set(self.area_name)
@@ -79,9 +81,9 @@ function PanelBaseInfo:dupdate()
         self.button_cancel.enable = false
         self.button_clear.enable = true
     else
-        self.button_select_area.enable = true
-        self.button_set.enable = true
-        self.button_cancel.enable = true
+        self.button_select_area.enable = not SuperSurvivorsBaseSelector.selectingArea
+        self.button_set.enable = SuperSurvivorsBaseSelector.selectingArea
+        self.button_cancel.enable = SuperSurvivorsBaseSelector.selectingArea
         self.button_clear.enable = false
     end
     if self.area_name == "Bounds" then
@@ -115,19 +117,20 @@ end
 
 function PanelBaseInfo:on_click_select_area()
     local area_to_edit = (self.area_name == "Bounds") and "BaseArea" or self.area_name
-    StartSelectingArea(0, area_to_edit)
+    SuperSurvivorsBaseSelector:StartSelectingArea(0, area_to_edit)
+    self:dupdate();
 end
 
 function PanelBaseInfo:on_click_set()
     local area_to_edit = (self.area_name == "Bounds") and "BaseArea" or self.area_name
-    SelectingArea(0, area_to_edit, 1);
+    SuperSurvivorsBaseSelector:StopSelectingArea(0, area_to_edit, 1);
     SurvivorPanels[2]:dupdate();
     self:dupdate();
 end
 
 function PanelBaseInfo:on_click_cancel()
     local area_to_edit = (self.area_name == "Bounds") and "BaseArea" or self.area_name
-    SelectingArea(0, area_to_edit, 0);
+    SuperSurvivorsBaseSelector:StopSelectingArea(0, area_to_edit, 0);
     SurvivorPanels[2]:dupdate();
     self:dupdate();
 end
@@ -238,6 +241,7 @@ end
 
 function PanelBaseInfo:on_click_close()
     self:removeFromUIManager()
+    SuperSurvivorsBaseSelector:RemoveToggleCallback(self)
 end
 
 function PanelBaseInfo:createChildren()
@@ -339,6 +343,8 @@ function PanelBaseInfo:new(x, y, width, height, area_name)
     o.manual_editing = false
     o.area_name = tostring(area_name)
     o.set_state = false
+
+    SuperSurvivorsBaseSelector:AddToggleCallback(o,o.dupdate,o)
     return o
 end
 

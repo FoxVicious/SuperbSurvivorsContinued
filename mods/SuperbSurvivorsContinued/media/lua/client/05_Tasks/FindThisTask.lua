@@ -1,9 +1,11 @@
+require "03_Core/SuperSurvivor";
+
 FindThisTask = {}
 FindThisTask.__index = FindThisTask
 
 local isLocalLoggingEnabled = false;
 
-function FindThisTask:new(superSurvivor, itemType, CategoryOrType, thisQuantity)
+function FindThisTask:new(superSurvivor, itemType, CategoryOrType, thisQuantity, predicate)
 	CreateLogLine("FindThisTask", isLocalLoggingEnabled, "function: FindThisTask:new() Called");
 	local o = {}
 	setmetatable(o, self)
@@ -36,6 +38,8 @@ function FindThisTask:new(superSurvivor, itemType, CategoryOrType, thisQuantity)
 	o.TargetItem = nil
 	o.Complete = false
 	o.WasSuccessful = false
+
+	o.Predicate=predicate
 
 	superSurvivor:RoleplaySpeak(Get_SS_UIActionText("LookForItem_Before") .. itemType .. Get_SS_UIActionText("LookForItem_After"))
 	return o
@@ -75,20 +79,11 @@ function FindThisTask:update()
 
 
 	if (self.TargetItem == nil) then
-		self.TargetItem = self.parent:FindThisNearBy(self.itemtype, self.COT)
 
-		-- handle different axe types
-		if (self.TargetItem == nil) and (self.itemtype == "Axe") then
-			self.parent.GoFindThisCounter = 0
-			self.TargetItem = self.parent:FindThisNearBy("WoodAxe", self.COT)
-		end
-		if (self.TargetItem == nil) and (self.itemtype == "Axe") then
-			self.parent.GoFindThisCounter = 0
-			self.TargetItem = self.parent:FindThisNearBy("AxeStone", self.COT)
-		end
-		if (self.TargetItem == nil) and (self.itemtype == "Axe") then
-			self.parent.GoFindThisCounter = 0
-			self.TargetItem = self.parent:FindThisNearBy("HandAxe", self.COT)
+		if (self.Predicate ~= nil) then
+			self.TargetItem = self.parent:FindThisNearByPredicate(self.Predicate)
+		else
+			self.TargetItem = self.parent:FindThisNearBy(self.itemtype, self.COT)
 		end
 	end
 
@@ -137,52 +132,52 @@ function FindThisTask:update()
 			end
 
 			if (instanceof(self.TargetItem, "IsoObject")) then
-				self.parent:DrinkFromObject(self.TargetItem)
-				self.Complete = true
-				self.WasSuccessful = true
+				if (self.parent:HasWaterContainer()) then
+
+					self:fillWaterContainers()
+					self.Complete = true
+					self.WasSuccessful = true
+
+				else
+					self.parent:DrinkFromObject(self.TargetItem)
+					self.Complete = true
+					self.WasSuccessful = true
+				end
 			else
 				if (self.BagToPutIn:contains(self.TargetItem) == false) then
-					if (self.TargetItem:getWorldItem() ~= nil) then
-						if (self.TargetItem:getWorldItem():getSquare() ~= nil) and (self.TargetItem:getWorldItem():getSquare():getModData().Group ~= nil) and (self.TargetItem:getWorldItem():getSquare():getModData().Group ~= self.parent:getGroupID()) then
-							SSGM:GetGroupById(self.TargetItem:getWorldItem():getSquare():getModData().Group):stealingDetected(
-								self.parent.player)
+					local targetWorldItem=self.TargetItem:getWorldItem()
+					if ( targetWorldItem~= nil) then
+						local targetItemSquare = targetWorldItem:getSquare() -- IsoGridSquare
+						local targetItemSquareModData=targetItemSquare:getModData()
+						if (targetItemSquare ~= nil) and (targetItemSquareModData.Group ~= nil) and (targetItemSquareModData.Group ~= self.parent:getGroupID()) then
+							SSGM:GetGroupById(targetItemSquareModData.Group):stealingDetected(self.parent.player)
 						end
-
-						local squareTargetison = self.TargetItem:getWorldItem():getSquare()
-						self.BagToPutIn:AddItem(self.TargetItem)
-						squareTargetison:removeWorldObject(self.TargetItem:getWorldItem())
-						if (self.TargetItem:getWorldItem() ~= nil) then self.TargetItem:getWorldItem():removeFromSquare() end
-						self.TargetItem:setWorldItem(nil)
-						self.parent:RoleplaySpeak(Get_SS_UIActionText("TakesFromGround_Before") ..
-							self.TargetItem:getDisplayName() .. Get_SS_UIActionText("TakesFromGround_After"))
+						local itemsToPickUp={self.TargetItem}
+						local itemsOnSquare= targetItemSquare:getWorldObjects()
+						local i=0
 						self.FoundCount = self.FoundCount + 1
 
-						if (self.Quantity > 1) then
-							local itemsOncurrentSquare = squareTargetison:getWorldObjects() -- take more of same type if piled on same square without scanning cell
-							for i = 1, itemsOncurrentSquare:size() - 1 do
-								local tempWitem = itemsOncurrentSquare:get(i)
-								if (tempWitem ~= nil) then
-									local tempitem = tempWitem:getItem()
-									if (tempitem ~= nil) then
-										if (tempitem:getType() == self.itemtype) or (tempitem:getCategory() == self.itemtype) then
-											self.BagToPutIn:AddItem(tempitem)
-											squareTargetison:removeWorldObject(tempitem:getWorldItem())
-											if (self.TargetItem:getWorldItem() ~= nil) then
-												tempitem:getWorldItem()
-													:removeFromSquare()
-											end
-											tempitem:setWorldItem(nil)
-											self.parent:RoleplaySpeak(Get_SS_UIActionText("TakesFromGround_Before") ..
-												tempitem:getDisplayName() .. Get_SS_UIActionText("TakesFromGround_After"))
-											self.FoundCount = self.FoundCount + 1
-											if (self.FoundCount >= self.Quantity) then
-												--self.parent:Speak("breaking:" .. tostring(self.Quantity)..","..tostring(self.FoundCount))
-												self.Complete = true
-												self.WasSuccessful = true
-												return true
-											end
-										end
+						while (self.FoundCount < self.Quantity and i<itemsOnSquare:size())do
+							local itemWorld=itemsOnSquare:get(i) --IsoWorldInventoryObject
+							if(itemWorld ~= nil) then
+								local item=itemWorld:getItem() --InventoryItem
+								if(item ~= nil) then
+									if (item:getType() == self.TargetItem:getType()) or (self.COT=="Category" and item:getCategory() == self.itemtype) then
+										table.insert(itemsToPickUp,item)
+										self.FoundCount = self.FoundCount + 1
 									end
+								end
+							end
+							i=i+1
+						end
+						self.parent:RoleplaySpeak(Get_SS_UIActionText("TakesFromGround_Before") ..self.TargetItem:getDisplayName() .. Get_SS_UIActionText("TakesFromGround_After"))
+						local time = ISWorldObjectContextMenu.grabItemTime(self.parent.player, targetWorldItem);
+						self.parent:StopWalk()
+						for _, itemObj in ipairs(itemsToPickUp) do
+							if self:isValid() and itemObj and itemObj:getWorldItem() then
+								if self.BagToPutIn:isItemAllowed(itemObj) then
+									ISTimedActionQueue.add(ISInventoryTransferAction:new(self.parent.player, itemObj,
+											itemObj:getContainer(), self.BagToPutIn, time))
 								end
 							end
 						end
@@ -207,3 +202,66 @@ function FindThisTask:update()
 		self.WasSuccessful = true
 	end
 end
+
+---See ISWorldObjectContextMenu.doFillWaterMenu and ISWorldObjectContextMenu.onTakeWater
+function FindThisTask:fillWaterContainers()
+	local playerObj = self.parent.player
+	local playerInv = playerObj:getInventory()
+	local waterContainerList = {}
+	local pourInto = playerInv:getAllEvalRecurse(SuperSurvivorPredicate.waterContainer)
+
+	if pourInto:isEmpty() then
+		return
+	end
+
+	--make a table of all containers
+	for i = 0, pourInto:size() - 1 do
+		local container = pourInto:get(i)
+		table.insert(waterContainerList, container)
+	end
+	local waterObject = self.TargetItem
+	local waterAvailable = waterObject:getWaterAmount()
+
+	local didWalk = false
+
+	for i, item in ipairs(waterContainerList) do
+		-- first case, fill an empty bottle
+		if item:canStoreWater() and not item:isWaterSource() then
+			if not didWalk and (not waterObject:getSquare() or not luautils.walkAdj(playerObj, waterObject:getSquare(), true)) then
+				return
+			end
+			didWalk = true
+			-- we create the item which contain our water
+			local newItemType = item:getReplaceType("WaterSource");
+			local newItem = InventoryItemFactory.CreateItem(newItemType, 0);
+			newItem:setCondition(item:getCondition());
+			newItem:setFavorite(item:isFavorite());
+			local returnToContainer = item:getContainer():isInCharacterInventory(playerObj) and item:getContainer()
+			ISWorldObjectContextMenu.transferIfNeeded(playerObj, item)
+			local destCapacity = 1 / newItem:getUseDelta()
+			local waterConsumed = math.min(math.floor(destCapacity + 0.001), waterAvailable)
+			ISTimedActionQueue.add(ISTakeWaterAction:new(playerObj, newItem, waterConsumed, waterObject, waterConsumed * 10, item));
+			if returnToContainer and (returnToContainer ~= playerInv) then
+				ISTimedActionQueue.add(ISInventoryTransferAction:new(playerObj, newItem, playerInv, returnToContainer))
+			end
+		elseif item:canStoreWater() and item:isWaterSource() then
+			-- second case, a bottle contain some water, we just fill it
+			if not didWalk and (not waterObject:getSquare() or not luautils.walkAdj(playerObj, waterObject:getSquare(), true)) then
+				return
+			end
+			didWalk = true
+			local returnToContainer = item:getContainer():isInCharacterInventory(playerObj) and item:getContainer()
+			if playerObj:getPrimaryHandItem() ~= item and playerObj:getSecondaryHandItem() ~= item then
+			end
+			ISWorldObjectContextMenu.transferIfNeeded(playerObj, item)
+			local destCapacity = (1 - item:getUsedDelta()) / item:getUseDelta()
+			local waterConsumed = math.min(math.floor(destCapacity + 0.001), waterAvailable)
+			ISTimedActionQueue.add(ISTakeWaterAction:new(playerObj, item, waterConsumed, waterObject, waterConsumed * 10, nil));
+			if returnToContainer then
+				ISTimedActionQueue.add(ISInventoryTransferAction:new(playerObj, item, playerInv, returnToContainer))
+			end
+		end
+	end
+
+end
+

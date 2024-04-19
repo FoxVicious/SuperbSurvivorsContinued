@@ -58,54 +58,13 @@ function MakeToolTip(option, name, desc)
 	return toolTip;
 end
 
+
 --- gets the square where the mouse is empty
 ---@return any returns the a square
 function GetMouseSquare()
-	local sw = (128 / getCore():getZoom(0));
-	local sh = (64 / getCore():getZoom(0));
-
-	local mapx = getSpecificPlayer(0):getX();
-	local mapy = getSpecificPlayer(0):getY();
-	local mousex = ((getMouseX() - (getCore():getScreenWidth() / 2)));
-	local mousey = ((getMouseY() - (getCore():getScreenHeight() / 2)));
-
-	local sx = mapx + (mousex / (sw / 2) + mousey / (sh / 2)) / 2;
-	local sy = mapy + (mousey / (sh / 2) - (mousex / (sw / 2))) / 2;
-
-	local sq = getCell():getGridSquare(sx, sy, getSpecificPlayer(0):getZ());
+	local tile = UIManager:getPickedTile()
+	local sq = getCell():getGridSquare(tile:getX(), tile:getY(), getSpecificPlayer(0):getZ());
 	return sq;
-end
-
---- gets the world Y position of the mouse
----@return number returns the Y position
-function GetMouseSquareY()
-	local sw = (128 / getCore():getZoom(0));
-	local sh = (64 / getCore():getZoom(0));
-
-	local mapx = getSpecificPlayer(0):getX();
-	local mapy = getSpecificPlayer(0):getY();
-	local mousex = ((getMouseX() - (getCore():getScreenWidth() / 2)));
-	local mousey = ((getMouseY() - (getCore():getScreenHeight() / 2)));
-
-	local sy = mapy + (mousey / (sh / 2) - (mousex / (sw / 2))) / 2;
-
-	return sy
-end
-
---- gets the world X position of the mouse
----@return number returns the X position
-function GetMouseSquareX()
-	local sw = (128 / getCore():getZoom(0));
-	local sh = (64 / getCore():getZoom(0));
-
-	local mapx = getSpecificPlayer(0):getX();
-	local mapy = getSpecificPlayer(0):getY();
-	local mousex = ((getMouseX() - (getCore():getScreenWidth() / 2)));
-	local mousey = ((getMouseY() - (getCore():getScreenHeight() / 2)));
-
-	local sx = mapx + (mousex / (sw / 2) + mousey / (sh / 2)) / 2;
-
-	return sx
 end
 
 function IsItemArray(t)

@@ -3,6 +3,68 @@ BarricadeBuildingTask.__index = BarricadeBuildingTask
 
 local isLocalLoggingEnabled = false;
 
+function BarricadeBuildingTask:getHammer()
+	local phi = self.parent:Get():getPrimaryHandItem()
+	if (not phi) or (not SuperSurvivorPredicate.hammer(phi)) then
+		self.Hammer = self.parent:Get():getInventory():getFirstEvalRecurse(SuperSurvivorPredicate.hammer)
+		if (self.Hammer == nil) then
+			if (self.HammerToGet == true) then
+				self.parent:Speak("No hammer found");
+				self.Complete = true;
+			else
+				self.HammerToGet = true;
+				self.parent:Speak("Looking for a hammer");
+				self.parent:getTaskManager():AddToTop(FindThisTask:new(self.parent, "hammer", "Type",1,SuperSurvivorPredicate.hammer))
+			end
+		else
+			ISInventoryPaneContextMenu.transferIfNeeded(self.parent.player, self.Hammer)
+			self.parent:Get():setPrimaryHandItem(self.Hammer)
+		end
+	else
+		self.Hammer = phi
+	end
+end
+
+function BarricadeBuildingTask:getPlank()
+	local phi = self.parent:Get():getPrimaryHandItem()
+	if (not phi) or (phi:getType() ~= "Plank") then
+		self.Plank = self.parent:Get():getInventory():getFirstTypeRecurse("Plank")
+		if (self.Plank == nil) then
+			if (self.PlankToGet == true) then
+				self.parent:Speak("No plank found");
+				self.Complete = true;
+			else
+				self.PlankToGet = true;
+				self.parent:Speak("Looking for a plank");
+				self.parent:getTaskManager():AddToTop(FindThisTask:new(self.parent, "Plank", "Type"))
+			end
+		else
+			ISInventoryPaneContextMenu.transferIfNeeded(self.parent.player, self.Plank)
+		end
+	else
+		self.Plank = phi
+	end
+end
+
+function BarricadeBuildingTask:getNails()
+		local lastNailsCount =self.NailsCount
+		local nails=self.parent:Get():getInventory():getSomeTypeRecurse("Nails",2)
+		if (nails:size()<2) then
+			self.NailsCount = nails:size()
+			if (self.NailsToGet == true and lastNailsCount ~= nil and lastNailsCount == self.NailsCount) then
+				self.parent:Speak("No nails found");
+				self.Complete = true;
+			else
+				self.NailsToGet = true;
+				self.parent:Speak("Looking for nails");
+				self.parent:getTaskManager():AddToTop(FindThisTask:new(self.parent, "Nails", "Type",2))
+			end
+		else
+			ISInventoryPaneContextMenu.transferIfNeeded(self.parent.player, nails)
+			self.NailsCount = nails:size()
+		end
+end
+
 function BarricadeBuildingTask:new(superSurvivor)
 	local o = {}
 	setmetatable(o, self)
@@ -20,26 +82,12 @@ function BarricadeBuildingTask:new(superSurvivor)
 
 	CreateLogLine("BarricadeBuildingTask", isLocalLoggingEnabled, "function: BarricadeBuildingTask:new() called");
 
-	local inv = o.parent.player:getInventory()
-	local temp = inv:FindAndReturn("Hammer")
-	if (temp) then
-		o.Hammer = temp
-	else
-		o.Hammer = inv:AddItem("Base.Hammer")
-	end
-
-	temp = inv:FindAndReturn("Plank")
-	if (temp) then
-		o.Plank = temp
-	else
-		o.Plank = inv:AddItem("Base.Plank")
-	end
-
-	if inv:getItemCount("Base.Nails", true) < 2 then
-		inv:AddItem(instanceItem("Base.Nails"))
-		inv:AddItem(instanceItem("Base.Nails"))
-	end
-
+	o.Hammer = nil
+	o.HammerToGet=false
+	o.Plank = nil
+	o.PlankToGet=false
+	o.NailsCount=nil
+	o.NailsToGet=false
 	return o
 end
 
@@ -71,6 +119,11 @@ function BarricadeBuildingTask:update()
 	CreateLogLine("BarricadeBuildingTask", isLocalLoggingEnabled, "function: BarricadeBuildingTask:update() called");
 	if (not self:isValid()) then return false end
 
+	-- Since there are multiple calls to the FindThisTask task, we need to wait until GoFindThisCounter returns to 0
+	if (self.parent.GoFindThisCounter > 0) then
+		return false
+	end
+
 	if (self.parent:isInAction() == false) then
 		local building = self.parent:getBuilding();
 		if (building ~= nil) then
@@ -82,6 +135,18 @@ function BarricadeBuildingTask:update()
 			end
 		else
 			self.Complete = true
+			return false
+		end
+		if(self.Hammer==nil)then
+			self:getHammer()
+			return false
+		end
+		if(self.Plank==nil)then
+			self:getPlank()
+			return false
+		end
+		if(self.NailsCount==nil or self.NailsCount<2)then
+			self:getNails()
 			return false
 		end
 
@@ -98,15 +163,16 @@ function BarricadeBuildingTask:update()
 		elseif barricade == nil or (barricade:canAddPlank()) then
 			self.parent.player:setPrimaryHandItem(self.Hammer)
 			self.parent.player:setSecondaryHandItem(self.Plank)
-			if not self.parent.player:getInventory():contains("Nails", true) then
-				self.parent.player:getInventory():AddItem("Base.Nails")
-			end
 
 			self.parent:StopWalk()
 			ISTimedActionQueue.add(ISBarricadeAction:new(self.parent.player, self.Window, false, false, 100));
 
 
 			self.Window = nil
+			self.Plank=nil
+			self.PlankToGet=false
+			self.NailsCount=nil
+			self.NailsToGet=false
 		else
 			self.Window = nil
 		end
